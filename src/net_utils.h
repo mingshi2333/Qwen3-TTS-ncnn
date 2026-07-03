@@ -53,6 +53,14 @@ public:
     // and advances the internal cache.
     ncnn::Mat forward(const ncnn::Mat& embeds);
 
+    // Fused forward + follow-on head for the MTP predictor step: run forward,
+    // feed the resulting hidden's LAST row into `head` (a stateless SimpleNet,
+    // input blob "in0"), and return head's `head_out` logits (1 row). On Vulkan
+    // the whole thing is ONE submit — the hidden never leaves the GPU, only the
+    // logits and updated cache download. Numerically identical to
+    // forward() followed by a separate head run.
+    ncnn::Mat forward_head(const ncnn::Mat& embeds, ncnn::Net& head, const char* head_out);
+
     int past() const { return past_; }
 
 private:

@@ -1,6 +1,9 @@
 #include "tts_pipeline.h"
 
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -91,14 +94,13 @@ void TtsPipeline::predictor_frame(const float* past_hidden, int code0, int* rest
     memcpy(pre.row(0), past_hidden, cfg.hidden * sizeof(float));
     copy_row(pre, 1, emb_c0, 0);
 
-    ncnn::Mat h = predictor_.forward(pre);
-    ncnn::Mat last(cfg.hidden, 1);
-    copy_row(last, 0, h, h.h - 1);
-
+    // MTP loop: at step s, head[s] is applied to the hidden produced by the
+    // forward at step s, so forward+head[s] fuse into one op (one GPU submit).
+    ncnn::Mat cur = pre;
     char out_name[16];
     for (int s = 0; s < cfg.num_code_groups - 1; s++) {
         snprintf(out_name, sizeof(out_name), "out%d", s);
-        ncnn::Mat logits = pred_heads_.run(last, out_name);
+        ncnn::Mat logits = predictor_.forward_head(cur, pred_heads_.net, out_name);
         const float* l = logits.row(0);
         int best;
         if (opts.sub_do_sample) {
@@ -112,9 +114,7 @@ void TtsPipeline::predictor_frame(const float* past_hidden, int code0, int* rest
         }
         rest[s] = best;
         if (s == cfg.num_code_groups - 2) break;
-        ncnn::Mat emb = pred_embeds_.run_ids({best + s * cfg.pred_vocab});
-        ncnn::Mat hs = predictor_.forward(emb);
-        copy_row(last, 0, hs, hs.h - 1);
+        cur = pred_embeds_.run_ids({best + s * cfg.pred_vocab});
     }
 }
 
@@ -139,6 +139,12 @@ std::vector<Frame> TtsPipeline::generate(const ncnn::Mat& prompt, const ncnn::Ma
     copy_row(past, 0, hidden, hidden.h - 1);
     ncnn::Mat logits = codec_head_.run(past);
 
+    const bool prof = getenv("Q3TTS_PROFILE") && getenv("Q3TTS_PROFILE")[0] == '1';
+    using clk = std::chrono::steady_clock;
+    auto ms = [](clk::time_point a, clk::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
+
     std::vector<Frame> frames;
     for (int step = 0; step < max_frames; step++) {
         int code0 = opts.do_sample
@@ -148,7 +154,9 @@ std::vector<Frame> TtsPipeline::generate(const ncnn::Mat& prompt, const ncnn::Ma
 
         Frame f;
         f.codes[0] = code0;
+        auto tp0 = clk::now();
         predictor_frame(past.row(0), code0, f.codes + 1, opts, &rng);
+        auto tp1 = clk::now();
         frames.push_back(f);
 
         ncnn::Mat nxt = frame_sum_embed(f);
@@ -159,9 +167,14 @@ std::vector<Frame> TtsPipeline::generate(const ncnn::Mat& prompt, const ncnn::Ma
             add_row(nxt, 0, trailing, step);
         else
             add_row(nxt, 0, tts_pad_embed_, 0);
+        auto tt0 = clk::now();
         ncnn::Mat h = talker_.forward(nxt);
+        auto tt1 = clk::now();
         copy_row(past, 0, h, h.h - 1);
         logits = codec_head_.run(past);
+        if (prof)
+            fprintf(stderr, "PROF step=%2d talker=%.2fms predictor=%.2fms\n",
+                    step, ms(tt0, tt1), ms(tp0, tp1));
     }
     return frames;
 }
