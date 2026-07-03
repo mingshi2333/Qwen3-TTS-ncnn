@@ -1,0 +1,11 @@
+build*/
+models/*
+!models/tokenizer.txt
+!models/model.json
+models-cv/*
+!models-cv/model.json
+tests/data/*.f32
+tests/data/*.wav
+.cache/
+__pycache__/
+*.pyc

@@ -1,0 +1,45 @@
+# Structural CI: build on Linux + Windows and run the dependency-free unit
+# tests (tokenizer + sampler use committed test vectors; model-dependent tests
+# run locally only — no small official checkpoint exists, see SOLUTION.md M5).
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: cache ncnn build
+        uses: actions/cache@v6
+        with:
+          path: build/_deps
+          key: ncnn-244f30c8-${{ matrix.os }}
+
+      - name: configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: build
+        run: cmake --build build -j 4 --config Release
+
+      - name: unit tests (tokenizer + sampler)
+        shell: bash
+        run: |
+          BIN=build
+          [ -d build/Release ] && BIN=build/Release
+          if [ -f models/tokenizer.txt ] && [ -f tests/data/tokenizer_test.bin ]; then
+            $BIN/test_tokenizer models/tokenizer.txt tests/data/tokenizer_test.bin
+          else
+            echo "tokenizer vectors not committed — skipped"
+          fi
+          if [ -f tests/data/sampler_test.bin ]; then
+            $BIN/test_sampler tests/data/sampler_test.bin
+          else
+            echo "sampler vectors not committed — skipped"
+          fi
