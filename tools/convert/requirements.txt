@@ -1,0 +1,8 @@
+transformers==4.57.3
+accelerate==1.12.0
+librosa
+soundfile
+pnnx
+ncnn
+# torch: install the build matching your GPU, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cu126
