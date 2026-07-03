@@ -57,15 +57,21 @@ flowchart LR
 
 ## Performance
 
-Ryzen 7745HX / RTX 4060 Laptop, fp32, 3.5 s utterance:
+Ryzen 7745HX (8 physical cores) / RTX 4060 Laptop, fp32, 3.5 s utterance,
+44 frames, same session (RTF = generate+decode time / audio duration, lower = faster):
 
 | Tier | RTF | Codec alone | Token parity |
 |---|---|---|---|
-| PyTorch fp32 CPU | ~118 | — | baseline |
-| ncnn CPU fp32 (16T) | **~3.4** | ~1× RT | 704/704 |
-| ncnn Vulkan fp32 | 3.9 | 3.4× RT | 704/704 |
+| PyTorch fp32 CPU (8 threads) | ~10.5 | — | baseline |
+| ncnn CPU fp32 (8 threads) | **~2.5** | 1.9× RT | 704/704 |
+| ncnn Vulkan fp32 | **~2.25** | 3.4× RT | 704/704 |
 
-The AR loop is latency-bound (tiny per-step GEMMs), so the GPU pays off on the codec, not the LLM.
+ncnn CPU is ~4× faster than PyTorch fp32 CPU (mostly PyTorch's per-op overhead at
+batch-1, not kernel speed). Use 8 threads (= physical cores); 16 oversubscribes
+and is slower. The AR loop is memory-bandwidth- and submit-latency-bound; the
+Vulkan build was *initially slower than CPU* (RTF 3.95) until we removed a
+per-blob submit bottleneck — see [docs/vulkan-ar-decode-perf.md](docs/vulkan-ar-decode-perf.md)
+for the root cause, diagnosis, and fix. fp16 was tested and rejected (diverges + slower).
 
 ## Build
 
