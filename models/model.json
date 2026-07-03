@@ -1,0 +1,60 @@
+{
+  "model_type": "qwen3_tts",
+  "tts_model_type": "base",
+  "setting": {
+    "rope": {
+      "type": "rope",
+      "theta": 1000000,
+      "head_dim": 128
+    },
+    "codec": {
+      "window": 72,
+      "theta": 10000.0,
+      "head_dim": 64,
+      "upsample": 1920,
+      "sample_rate": 24000
+    }
+  },
+  "ids": {
+    "codec_eos": 2150,
+    "codec_pad": 2148,
+    "codec_bos": 2149,
+    "codec_think": 2154,
+    "codec_nothink": 2155,
+    "codec_think_bos": 2156,
+    "codec_think_eos": 2157,
+    "tts_bos": 151672,
+    "tts_eos": 151673,
+    "tts_pad": 151671
+  },
+  "arch": {
+    "talker_layers": 28,
+    "pred_layers": 5,
+    "hidden": 1024,
+    "codec_vocab": 3072,
+    "pred_vocab": 2048,
+    "num_code_groups": 16,
+    "pred_rope_theta": 1000000
+  },
+  "generation": {
+    "max_new_tokens": 8192,
+    "temperature": 0.9,
+    "top_k": 50,
+    "top_p": 1.0,
+    "repetition_penalty": 1.05,
+    "min_new_tokens": 2
+  },
+  "language_ids": {
+    "chinese": 2055,
+    "english": 2050,
+    "german": 2053,
+    "italian": 2070,
+    "portuguese": 2071,
+    "spanish": 2054,
+    "japanese": 2058,
+    "korean": 2064,
+    "french": 2061,
+    "russian": 2069
+  },
+  "spk_id": {}
+}
